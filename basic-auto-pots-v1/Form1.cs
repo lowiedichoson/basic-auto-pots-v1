@@ -1,12 +1,25 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace basic_auto_pots_v1
 {
     public partial class main_form : Form
     {
+        // Low-level mouse hook
+        private const int WH_MOUSE_LL = 14;
+        private const int WM_RBUTTONDOWN = 0x0204;
+        private const int WM_RBUTTONUP = 0x0205;
         private const int HOTKEY_ID = 1;
+        private const int INPUT_KEYBOARD = 1;
+        private const uint KEYEVENTF_SCANCODE = 0x0008;
         private const uint MOD_NONE = 0x0000;
         private const uint VK_F8 = 0x77;
+        private const uint KEYEVENTF_KEYUP = 0x0002;
+
+        private bool isRunning = false;
+        private CancellationTokenSource cts;
+        private IntPtr _hookID = IntPtr.Zero;
+        private LowLevelMouseProc _proc;
 
         [DllImport("user32.dll")]
         private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
@@ -16,6 +29,19 @@ namespace basic_auto_pots_v1
 
         [DllImport("user32.dll", SetLastError = true)]
         private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelMouseProc lpfn, IntPtr hMod, uint dwThreadId);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto)]
+        private static extern IntPtr GetModuleHandle(string lpModuleName);
 
         [StructLayout(LayoutKind.Sequential)]
         private struct INPUT
@@ -61,20 +87,19 @@ namespace basic_auto_pots_v1
             public IntPtr dwExtraInfo;
         }
 
-        private const int INPUT_KEYBOARD = 1;
-        private const uint KEYEVENTF_KEYUP = 0x0002;
 
-        private bool isRunning = false;
-        private CancellationTokenSource cts;
         public main_form()
         {
             InitializeComponent();
+            _proc = HookCallback;
+
+            this.Opacity = 0.95;
         }
 
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
-            RegisterHotKey(this.Handle, HOTKEY_ID, MOD_NONE, VK_F8);
+            _hookID = SetHook(_proc);
 
             label1.Left = (this.ClientSize.Width - label1.Width) / 2;
             label_status.Left = (this.ClientSize.Width - label_status.Width) / 2;
@@ -82,10 +107,59 @@ namespace basic_auto_pots_v1
 
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
-            UnregisterHotKey(this.Handle, HOTKEY_ID);
+            UnhookWindowsHookEx(_hookID);
             base.OnFormClosed(e);
         }
 
+        private IntPtr SetHook(LowLevelMouseProc proc)
+        {
+            using Process curProcess = Process.GetCurrentProcess();
+            using ProcessModule curModule = curProcess.MainModule;
+            return SetWindowsHookEx(WH_MOUSE_LL, proc, GetModuleHandle(curModule.ModuleName), 0);
+        }
+
+        private delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+        private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            if (nCode >= 0)
+            {
+                if (wParam == (IntPtr)WM_RBUTTONDOWN)
+                {
+                    StartKeyLoop();
+                }
+                else if (wParam == (IntPtr)WM_RBUTTONUP)
+                {
+                    StopKeyLoop();
+                }
+            }
+            return CallNextHookEx(_hookID, nCode, wParam, lParam);
+        }
+
+        private void StartKeyLoop()
+        {
+            if (!isRunning)
+            {
+                isRunning = true;
+                label_status.Text = "Status: Running";
+                label_status.ForeColor = System.Drawing.Color.Green;
+
+                cts = new CancellationTokenSource();
+                Task.Run(() => LoopKeys(cts.Token));
+            }
+        }
+
+        private void StopKeyLoop()
+        {
+            if (isRunning)
+            {
+                isRunning = false;
+                label_status.Text = "Status: Stopped";
+                label_status.ForeColor = System.Drawing.Color.Red;
+
+                cts?.Cancel();
+            }
+        }
         protected override void WndProc(ref Message m)
         {
             const int WM_HOTKEY = 0x0312;
@@ -121,13 +195,15 @@ namespace basic_auto_pots_v1
         {
             ushort[] scancodes = { 0x10, 0x11, 0x12, 0x13 }; // qwer
             //ushort[] scancodes = { 0x02, 0x03, 0x04, 0x05 }; // 1234 
+            //ushort[] scancodes = { 0x04, 0x02  }; // 13
 
             while (!token.IsCancellationRequested)
             {
                 foreach (var scancode in scancodes)
-                {
-                    SimulateScancodePress(scancode);
-                    await Task.Delay(10, token); // 10ms delay
+                { 
+                    SimulateScancodeDown(scancode);
+                    await Task.Delay(2, token); // 10ms delay
+                    SimulateScancodeUp(scancode);
                 }
             }
         }
@@ -163,13 +239,8 @@ namespace basic_auto_pots_v1
             }
         }
 
-        //hardware scancodes
-
-        private const uint KEYEVENTF_SCANCODE = 0x0008;
-
-        private void SimulateScancodePress(ushort scancode)
+        private void SimulateScancodeDown(ushort scancode)
         {
-            // key down
             var down = new INPUT
             {
                 type = INPUT_KEYBOARD,
@@ -185,8 +256,11 @@ namespace basic_auto_pots_v1
                     }
                 }
             };
+            SendInput(1, new[] { down }, Marshal.SizeOf(typeof(INPUT)));
+        }
 
-            // key up
+        private void SimulateScancodeUp(ushort scancode)
+        {
             var up = new INPUT
             {
                 type = INPUT_KEYBOARD,
@@ -202,14 +276,7 @@ namespace basic_auto_pots_v1
                     }
                 }
             };
-
-            var inputs = new[] { down, up };
-            uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT)));
-            if (sent == 0)
-            {
-                int err = Marshal.GetLastWin32Error();
-                MessageBox.Show($"SendInput failed. Win32 error: {err}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            SendInput(1, new[] { up }, Marshal.SizeOf(typeof(INPUT)));
         }
     }
 }

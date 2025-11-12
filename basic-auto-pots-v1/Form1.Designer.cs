@@ -38,12 +38,12 @@
             label1.AutoSize = true;
             label1.FlatStyle = FlatStyle.Flat;
             label1.Font = new Font("Segoe UI", 12F);
-            label1.Location = new Point(67, 27);
+            label1.Location = new Point(36, 29);
             label1.MaximumSize = new Size(400, 0);
             label1.Name = "label1";
-            label1.Size = new Size(254, 28);
+            label1.Size = new Size(318, 28);
             label1.TabIndex = 0;
-            label1.Text = "Press F8 to start QWER keys";
+            label1.Text = "Press right click to start QWER keys";
             label1.TextAlign = ContentAlignment.MiddleCenter;
             // 
             // label_status
