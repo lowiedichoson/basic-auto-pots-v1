@@ -56,7 +56,7 @@
             MaximizeBox = false;
             MinimizeBox = false;
             Name = "main_form";
-            Text = "Basic - Auto Potion V1";
+            Text = "Basic - Auto Potion V1.0";
             ResumeLayout(false);
             PerformLayout();
         }

@@ -121,7 +121,7 @@ namespace basic_auto_pots_v1
                 foreach (var scancode in scancodes)
                 {
                     SimulateScancodePress(scancode);
-                    await Task.Delay(5, token); // 5ms delay
+                    await Task.Delay(10, token); // 10ms delay
                 }
             }
         }
