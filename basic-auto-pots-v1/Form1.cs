@@ -77,7 +77,7 @@ namespace basic_auto_pots_v1
             RegisterHotKey(this.Handle, HOTKEY_ID, MOD_NONE, VK_F8);
 
             label1.Left = (this.ClientSize.Width - label1.Width) / 2;
-            label1.Top = (this.ClientSize.Height - label1.Height) / 2;
+            label_status.Left = (this.ClientSize.Width - label_status.Width) / 2;
         }
 
         protected override void OnFormClosed(FormClosedEventArgs e)
@@ -101,12 +101,18 @@ namespace basic_auto_pots_v1
             if (!isRunning)
             {
                 isRunning = true;
+                label_status.Text = "Status: Running";
+                label_status.ForeColor = System.Drawing.Color.Green;
+
                 cts = new CancellationTokenSource();
                 Task.Run(() => LoopKeys(cts.Token));
             }
             else
             {
                 isRunning = false;
+                label_status.Text = "Status: Stopped";
+                label_status.ForeColor = System.Drawing.Color.Red;
+
                 cts?.Cancel();
             }
         }

@@ -30,6 +30,7 @@
         {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(main_form));
             label1 = new Label();
+            label_status = new Label();
             SuspendLayout();
             // 
             // label1
@@ -37,19 +38,30 @@
             label1.AutoSize = true;
             label1.FlatStyle = FlatStyle.Flat;
             label1.Font = new Font("Segoe UI", 12F);
-            label1.Location = new Point(121, 65);
-            label1.MaximumSize = new Size(200, 0);
+            label1.Location = new Point(67, 27);
+            label1.MaximumSize = new Size(400, 0);
             label1.Name = "label1";
-            label1.Size = new Size(150, 56);
+            label1.Size = new Size(254, 28);
             label1.TabIndex = 0;
             label1.Text = "Press F8 to start QWER keys";
             label1.TextAlign = ContentAlignment.MiddleCenter;
+            // 
+            // label_status
+            // 
+            label_status.AutoSize = true;
+            label_status.Font = new Font("Segoe UI", 11F);
+            label_status.Location = new Point(125, 93);
+            label_status.Name = "label_status";
+            label_status.Size = new Size(140, 25);
+            label_status.TabIndex = 1;
+            label_status.Text = "Status: Stopped";
             // 
             // main_form
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(382, 203);
+            Controls.Add(label_status);
             Controls.Add(label1);
             FormBorderStyle = FormBorderStyle.FixedSingle;
             Icon = (Icon)resources.GetObject("$this.Icon");
@@ -64,5 +76,6 @@
         #endregion
 
         private Label label1;
+        private Label label_status;
     }
 }
