@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36327.8 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "basic-auto-pots-v1", "basic-auto-pots-v1\basic-auto-pots-v1.csproj", "{E19C2081-6D20-4308-8182-CF8EF6EA556A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E19C2081-6D20-4308-8182-CF8EF6EA556A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E19C2081-6D20-4308-8182-CF8EF6EA556A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E19C2081-6D20-4308-8182-CF8EF6EA556A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E19C2081-6D20-4308-8182-CF8EF6EA556A}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {FBF46240-6ADD-4BDA-B1E5-FCE85B50709B}
+	EndGlobalSection
+EndGlobal
