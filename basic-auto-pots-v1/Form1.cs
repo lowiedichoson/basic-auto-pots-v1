@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
 
 namespace basic_auto_pots_v1
 {
@@ -15,8 +16,14 @@ namespace basic_auto_pots_v1
         private const uint MOD_NONE = 0x0000;
         private const uint VK_F8 = 0x77;
         private const uint KEYEVENTF_KEYUP = 0x0002;
+        private const uint VK_LCONTROL = 0xA2; // Virtual key code for Left CTRL
+        private const ushort SCANCODE_LCONTROL = 0x1D; // Scan code for Left CTRL
+        private const int MIN_DELAY = 2;   // ms
+        private const int MAX_DELAY = 1000; // ms
 
+        private bool isActivated = false;
         private bool isRunning = false;
+
         private CancellationTokenSource cts;
         private IntPtr _hookID = IntPtr.Zero;
         private LowLevelMouseProc _proc;
@@ -92,6 +99,7 @@ namespace basic_auto_pots_v1
         {
             InitializeComponent();
             _proc = HookCallback;
+            txt_box_delay.KeyPress += txt_box_delay_KeyPress;
 
             this.Opacity = 0.95;
         }
@@ -101,13 +109,22 @@ namespace basic_auto_pots_v1
             base.OnLoad(e);
             _hookID = SetHook(_proc);
 
-            label1.Left = (this.ClientSize.Width - label1.Width) / 2;
-            label_status.Left = (this.ClientSize.Width - label_status.Width) / 2;
+            cb_auto_qwer.Checked = true;
+
+            if (!RegisterHotKey(this.Handle, HOTKEY_ID, MOD_NONE, VK_F8))
+            {
+                MessageBox.Show("Failed to register f8 hotkey.");
+            }
+
         }
 
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             UnhookWindowsHookEx(_hookID);
+            UnregisterHotKey(this.Handle, HOTKEY_ID);
+
+            StopAllActions();
+
             base.OnFormClosed(e);
         }
 
@@ -122,7 +139,7 @@ namespace basic_auto_pots_v1
 
         private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
-            if (nCode >= 0)
+            if (nCode >= 0 && isActivated)
             {
                 if (wParam == (IntPtr)WM_RBUTTONDOWN)
                 {
@@ -141,11 +158,19 @@ namespace basic_auto_pots_v1
             if (!isRunning)
             {
                 isRunning = true;
-                label_status.Text = "Status: Running";
-                label_status.ForeColor = System.Drawing.Color.Green;
+                label_rmb_status.Text = "Held";
+                label_rmb_status.ForeColor = System.Drawing.Color.Green;
 
-                cts = new CancellationTokenSource();
-                Task.Run(() => LoopKeys(cts.Token));
+                if (cb_auto_ctrl.Checked)
+                {
+                    SimulateScancodeDown(SCANCODE_LCONTROL);
+                }
+
+                if (cb_auto_qwer.Checked)
+                {
+                    cts = new CancellationTokenSource();
+                    Task.Run(() => LoopKeys(cts.Token));
+                }
             }
         }
 
@@ -154,10 +179,19 @@ namespace basic_auto_pots_v1
             if (isRunning)
             {
                 isRunning = false;
-                label_status.Text = "Status: Stopped";
-                label_status.ForeColor = System.Drawing.Color.Red;
+                label_rmb_status.Text = "Released";
+                label_rmb_status.ForeColor = System.Drawing.Color.Red;
 
-                cts?.Cancel();
+                if (cb_auto_ctrl.Checked)
+                {
+                    SimulateScancodeUp(SCANCODE_LCONTROL);
+                }
+                
+                if (cb_auto_qwer.Checked)
+                {
+                    cts?.Cancel();
+                }
+
             }
         }
         protected override void WndProc(ref Message m)
@@ -165,77 +199,81 @@ namespace basic_auto_pots_v1
             const int WM_HOTKEY = 0x0312;
             if (m.Msg == WM_HOTKEY && m.WParam.ToInt32() == HOTKEY_ID)
             {
-                ToggleKeyLoop();
+                //ToggleKeyLoop();
+                ToggleActivation();
             }
             base.WndProc(ref m);
         }
 
-        private void ToggleKeyLoop()
+        private void ToggleActivation()
         {
-            if (!isRunning)
-            {
-                isRunning = true;
-                label_status.Text = "Status: Running";
-                label_status.ForeColor = System.Drawing.Color.Green;
+            isActivated = !isActivated;
 
-                cts = new CancellationTokenSource();
-                Task.Run(() => LoopKeys(cts.Token));
+            if (isActivated)
+            {
+                label_status.Invoke((MethodInvoker)delegate
+                {
+                    label_status.Text = "Activated";
+                    label_status.ForeColor = System.Drawing.Color.Green;
+                    btn_start.Text = "Stop (F8)";
+                    btn_start.BackColor = System.Drawing.Color.Red;
+                });
             }
             else
             {
-                isRunning = false;
-                label_status.Text = "Status: Stopped";
-                label_status.ForeColor = System.Drawing.Color.Red;
+                StopAllActions();
 
-                cts?.Cancel();
+                label_status.Invoke((MethodInvoker)delegate
+                {
+                    label_status.Text = "Deactivated";
+                    label_status.ForeColor = System.Drawing.Color.Red;
+                    btn_start.Text = "Start (F8)";
+                    btn_start.BackColor = System.Drawing.Color.Green;
+                });
+            }
+
+        }
+
+        private void StopAllActions()
+        {
+            // Force stop the running loop
+            cts?.Cancel();
+            isRunning = false;
+
+            // Force release CTRL if it was held down
+            SimulateScancodeUp(SCANCODE_LCONTROL);
+
+            // Force release QWER keys if they were mid-loop (this is usually handled by the loop itself, but good for cleanup)
+            ushort[] scancodes = { 0x10, 0x11, 0x12, 0x13 }; // qwer
+            foreach (var scancode in scancodes)
+            {
+                SimulateScancodeUp(scancode);
             }
         }
 
         private async Task LoopKeys(CancellationToken token)
         {
             ushort[] scancodes = { 0x10, 0x11, 0x12, 0x13 }; // qwer
+            //ushort[] scancodes = { 0x10 }; // q only
             //ushort[] scancodes = { 0x02, 0x03, 0x04, 0x05 }; // 1234 
             //ushort[] scancodes = { 0x04, 0x02  }; // 13
 
             while (!token.IsCancellationRequested)
             {
+                int delay = GetUserDelay();
+
                 foreach (var scancode in scancodes)
-                { 
+                {
                     SimulateScancodeDown(scancode);
-                    await Task.Delay(2, token); // 10ms delay
+                    await Task.Delay(delay, token); // custom delay
                     SimulateScancodeUp(scancode);
                 }
             }
-        }
 
-        private void SimulateKeyPress(Keys key)
-        {
-            ushort vk = (ushort)key;
-            var inputs = new INPUT[]
+            // Ensure keys are released if the loop is cancelled
+            foreach (var scancode in scancodes)
             {
-                new INPUT
-                {
-                    type = INPUT_KEYBOARD,
-                    U = new InputUnion
-                    {
-                        ki = new KEYBDINPUT { wVk = vk, dwFlags = 0 }
-                    }
-                },
-                new INPUT
-                {
-                    type = INPUT_KEYBOARD,
-                    U = new InputUnion
-                    {
-                        ki = new KEYBDINPUT { wVk = vk, dwFlags = KEYEVENTF_KEYUP }
-                    }
-                }
-            };
-
-            uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT)));
-            if (sent == 0)
-            {
-                int err = Marshal.GetLastWin32Error();
-                Console.WriteLine($"SendInput failed. Win32 error: {err}");
+                SimulateScancodeUp(scancode);
             }
         }
 
@@ -277,6 +315,31 @@ namespace basic_auto_pots_v1
                 }
             };
             SendInput(1, new[] { up }, Marshal.SizeOf(typeof(INPUT)));
+        }
+
+        private void btn_start_Click(object sender, EventArgs e)
+        {
+            ToggleActivation();
+        }
+
+        private int GetUserDelay()
+        {
+            if (int.TryParse(txt_box_delay.Text, out int val))
+            {
+                if (val < MIN_DELAY) return MIN_DELAY;
+                if (val > MAX_DELAY) return MAX_DELAY;
+                return val;
+            }
+
+            return MIN_DELAY;
+        }
+
+        private void txt_box_delay_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (!char.IsDigit(e.KeyChar) && !char.IsControl(e.KeyChar))
+            {
+                e.Handled = true;
+            }
         }
     }
 }
